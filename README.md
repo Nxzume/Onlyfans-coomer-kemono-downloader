@@ -1,6 +1,6 @@
-# Universal Media Downloader
+# Media Downloader
 
-A unified browser extension for downloading content from multiple platforms:
+A browser extension for downloading content from OnlyFans, Coomer, and Kemono sites:
 
 - **OnlyFans** - Download photos and videos from OnlyFans
 - **Coomer/Kemono** - Download content from Coomer and Kemono sites
@@ -16,7 +16,7 @@ A unified browser extension for downloading content from multiple platforms:
 
 The extension uses intelligent pattern-based detection that works even if sites change domains. See [SITE_DETECTION.md](SITE_DETECTION.md) for details on how to add new domains.
 
-## OnlyFans Downloader
+## OnlyFans Features
 
 A modern, feature-rich browser extension for downloading content from OnlyFans with enhanced video detection, dynamic button updating, and comprehensive media support.
 
@@ -33,7 +33,7 @@ A modern, feature-rich browser extension for downloading content from OnlyFans w
 
 ## Installation
 
-### OnlyFans Extension
+### Media Downloader Extension
 
 ### Method 1: Load as Unpacked Extension (Recommended)
 
@@ -55,7 +55,7 @@ A modern, feature-rich browser extension for downloading content from OnlyFans w
    - The extension should now appear in your extensions list
 
 5. **Verify Installation**
-   - You should see "OnlyFans Downloader" in your extensions
+   - You should see "Media Downloader" in your extensions
    - The extension icon should appear in your browser toolbar
 
 **Note**: The extension is now unified - it supports both OnlyFans and Coomer/Kemono in a single extension. No separate installation needed!
@@ -64,8 +64,8 @@ A modern, feature-rich browser extension for downloading content from OnlyFans w
 
 1. **Create Extension Directory**
    ```bash
-   mkdir onlyfans-downloader
-   cd onlyfans-downloader
+   mkdir media-downloader
+   cd media-downloader
    ```
 
 2. **Copy Files**
@@ -162,7 +162,7 @@ refreshButtons()          // Manual button refresh
 ## File Structure
 
 ```
-universal-media-downloader/
+media-downloader/
 ├── manifest.json          # Unified extension configuration
 ├── content.js            # OnlyFans content script
 ├── content_coomer.js     # Coomer/Kemono content script

@@ -1,5 +1,5 @@
 /**
- * Universal Media Downloader - Popup Script
+ * Media Downloader - Popup Script
  * Handles popup UI for both OnlyFans and Coomer/Kemono
  */
 

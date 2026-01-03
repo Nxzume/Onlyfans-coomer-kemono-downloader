@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Universal Media Downloader",
+  "name": "Media Downloader",
   "version": "7.0.0",
   "description": "Download content from OnlyFans, Coomer, and Kemono sites",
   "icons": {
@@ -11,7 +11,7 @@
   "action": {
     "default_icon": "/assets/icon16.png",
     "default_popup": "popup.html",
-    "default_title": "Universal Media Downloader"
+    "default_title": "Media Downloader"
   },
   "content_scripts": [
     {

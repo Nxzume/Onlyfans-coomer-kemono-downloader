@@ -1,5 +1,5 @@
 /**
- * Universal Media Downloader - Background Script
+ * Media Downloader - Background Script
  * Handles API interception and download management for OnlyFans, Coomer, and Kemono
  */
 
@@ -1230,7 +1230,7 @@ async function downloadCoomerFile(url, folder) {
 
 // Handle extension lifecycle
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Universal Media Downloader installed');
+  console.log('Media Downloader installed');
 });
 
 chrome.runtime.onSuspend.addListener(() => {
