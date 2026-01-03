@@ -208,27 +208,58 @@
         // Ignore errors
       }
       
-      // Find all video elements
+      // Find all images in post files area (including expanded ones)
+      // Check this first to avoid double-counting expanded images
       try {
-        const videoElements = document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player');
-        videoElements.forEach(video => {
+        const postImages = document.querySelectorAll('.post__files img, .post__content img, [class*="post"] img, div[class*="_expanded_"] img');
+        postImages.forEach(img => {
           try {
-            // Check video src
-            const videoSrc = video.getAttribute('src');
-            const validUrl = validateMediaUrl(videoSrc);
-            if (validUrl) {
-              mediaUrls.add(validUrl);
+            // Skip if this image is already in a link (to avoid double counting)
+            if (img.closest('a[href*="/data/"]')) {
+              return;
             }
             
-            // Check source elements inside video
-            const sources = video.querySelectorAll('source');
-            sources.forEach(source => {
-              const sourceSrc = source.getAttribute('src');
-              const validSourceUrl = validateMediaUrl(sourceSrc);
-              if (validSourceUrl) {
-                mediaUrls.add(validSourceUrl);
+            const src = img.getAttribute('src') || img.getAttribute('data-src');
+            if (src) {
+              const validUrl = validateMediaUrl(src);
+              if (validUrl) {
+                mediaUrls.add(validUrl);
               }
-            });
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        });
+      } catch (e) {
+        // Ignore errors
+      }
+      
+      // Find all video elements (including in expanded areas)
+      try {
+        const videoElements = document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player, [class*="post"] video, div[class*="_expanded_"] video');
+        videoElements.forEach(video => {
+          try {
+            // Check video src first, then data-src as fallback (don't add both)
+            let videoSrc = video.getAttribute('src') || video.getAttribute('data-src');
+            if (videoSrc) {
+              const validUrl = validateMediaUrl(videoSrc);
+              if (validUrl) {
+                mediaUrls.add(validUrl);
+              }
+            } else {
+              // Check source elements inside video (only if video src wasn't found)
+              const sources = video.querySelectorAll('source');
+              sources.forEach(source => {
+                const sourceSrc = source.getAttribute('src') || source.getAttribute('data-src');
+                if (sourceSrc) {
+                  const validSourceUrl = validateMediaUrl(sourceSrc);
+                  if (validSourceUrl) {
+                    mediaUrls.add(validSourceUrl);
+                    return; // Only use first valid source
+                  }
+                }
+              });
+            }
           } catch (e) {
             // Ignore errors
           }
@@ -248,48 +279,87 @@
     try {
       const mediaUrls = new Set();
       
+      // Find all file links
       const fileLinks = document.querySelectorAll('.post__files a.fileThumb, .post__files a[href*="/data/"], .post__files a.image-link');
       fileLinks.forEach(link => {
         try {
           const href = link.getAttribute('href');
-          if (href) {
-            let fullUrl = href;
-            if (!href.startsWith('http')) {
-              if (href.startsWith('//')) {
-                fullUrl = 'https:' + href;
-              } else if (href.startsWith('/')) {
-                fullUrl = window.location.origin + href;
-              } else {
-                fullUrl = window.location.origin + '/' + href;
-              }
-            }
-            
-            const urlPath = fullUrl.split('?')[0].split('#')[0];
-            const endsWithExt = /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(urlPath);
-            // More flexible CDN detection - works with any TLD
-    const isDataPath = fullUrl.includes('/data/') || 
-                      /^https?:\/\/[n0-9]+\.(coomer|kemono)\./.test(fullUrl) ||
-                      (typeof isCoomerKemonoCdn === 'function' && isCoomerKemonoCdn(fullUrl));
-            const isExcluded = fullUrl.includes('.html') || 
-                                 fullUrl.includes('.htm') ||
-                                 fullUrl.includes('/api/') || 
-                                 fullUrl.includes('/post/') ||
-                                 fullUrl.includes('/user/') ||
-                                 !endsWithExt ||
-                                 !isDataPath;
-            
-            if (!isExcluded && endsWithExt && isDataPath) {
-              const pathParts = urlPath.split('/');
-              const lastPart = pathParts[pathParts.length - 1];
-              if (lastPart && /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(lastPart)) {
-                mediaUrls.add(fullUrl);
-              }
-            }
+          const validUrl = validateMediaUrl(href);
+          if (validUrl) {
+            mediaUrls.add(validUrl);
           }
         } catch (e) {
           // Ignore errors
         }
       });
+      
+      // Find all images in post files area (including expanded ones)
+      // Use a single query to avoid duplicates - Set will handle URL deduplication
+      try {
+        const postImages = document.querySelectorAll('.post__files img, .post__content img, [class*="post"] img, div[class*="_expanded_"] img');
+        const processedImages = new Set(); // Track processed image elements
+        postImages.forEach(img => {
+          try {
+            // Skip if this image is already in a link (links are handled separately)
+            if (img.closest('a[href*="/data/"]')) {
+              return;
+            }
+            
+            // Skip if we've already processed this exact image element
+            if (processedImages.has(img)) {
+              return;
+            }
+            processedImages.add(img);
+            
+            // Check src first, then data-src as fallback (don't add both)
+            const src = img.getAttribute('src') || img.getAttribute('data-src');
+            if (src) {
+              const validUrl = validateMediaUrl(src);
+              if (validUrl) {
+                mediaUrls.add(validUrl);
+              }
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        });
+      } catch (e) {
+        // Ignore errors
+      }
+      
+      // Find all video elements (including in expanded areas)
+      try {
+        const videoElements = document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player, [class*="post"] video, div[class*="_expanded_"] video');
+        videoElements.forEach(video => {
+          try {
+            // Check video src first, then data-src as fallback (don't add both)
+            let videoSrc = video.getAttribute('src') || video.getAttribute('data-src');
+            if (videoSrc) {
+              const validUrl = validateMediaUrl(videoSrc);
+              if (validUrl) {
+                mediaUrls.add(validUrl);
+              }
+            } else {
+              // Check source elements inside video (only if video src wasn't found)
+              const sources = video.querySelectorAll('source');
+              sources.forEach(source => {
+                const sourceSrc = source.getAttribute('src') || source.getAttribute('data-src');
+                if (sourceSrc) {
+                  const validSourceUrl = validateMediaUrl(sourceSrc);
+                  if (validSourceUrl) {
+                    mediaUrls.add(validSourceUrl);
+                    return; // Only use first valid source
+                  }
+                }
+              });
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        });
+      } catch (e) {
+        // Ignore errors
+      }
       
       return Array.from(mediaUrls);
     } catch (error) {
@@ -300,19 +370,41 @@
   // Add download button to an element
   function addDownloadButtonToElement(element, mediaUrl) {
     try {
-      // Check if button already exists
-      if (element.parentElement && element.parentElement.querySelector('.coomerdl-download-btn')) {
-        return;
-      }
+      if (!element) return;
       
       const validUrl = validateMediaUrl(mediaUrl);
       if (!validUrl) {
         return;
       }
       
+      // Find the best container for the button
+      // Priority: expanded div > figure > thumbnail > video wrapper > parent
+      let buttonContainer = element.closest('div[class*="_expanded_"]') ||
+                           element.closest('figure') || 
+                           element.closest('.post__thumbnail') || 
+                           element.closest('.fluid_video_wrapper') ||
+                           element.parentElement;
+      
+      if (!buttonContainer) {
+        buttonContainer = element;
+      }
+      
+      // Check if button already exists for this URL
+      const existingBtn = buttonContainer.querySelector('.coomerdl-download-btn[data-url="' + validUrl + '"]');
+      if (existingBtn) {
+        return;
+      }
+      
+      // Ensure container has position relative for absolute positioning
+      const containerStyle = window.getComputedStyle(buttonContainer);
+      if (containerStyle.position === 'static') {
+        buttonContainer.style.position = 'relative';
+      }
+      
       // Create download button
       const downloadBtn = document.createElement('button');
       downloadBtn.className = 'coomerdl-download-btn';
+      downloadBtn.setAttribute('data-url', validUrl);
       downloadBtn.textContent = '⬇ Download';
       downloadBtn.style.cssText = `
         position: absolute;
@@ -325,10 +417,11 @@
         border-radius: 3px;
         font-size: 11px;
         cursor: pointer;
-        z-index: 1000;
+        z-index: 10000;
         font-family: Arial, sans-serif;
         box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         transition: background 0.2s;
+        pointer-events: auto;
       `;
       
       downloadBtn.addEventListener('mouseenter', () => {
@@ -370,20 +463,8 @@
         });
       });
       
-      // Find the parent container
-      let container = element.closest('figure') || 
-                     element.closest('.post__thumbnail') || 
-                     element.closest('.fluid_video_wrapper') ||
-                     element.parentElement;
-      
-      if (container) {
-        // Make container relative positioned if not already
-        const containerStyle = window.getComputedStyle(container);
-        if (containerStyle.position === 'static') {
-          container.style.position = 'relative';
-        }
-        container.appendChild(downloadBtn);
-      }
+      // Append button to container
+      buttonContainer.appendChild(downloadBtn);
     } catch (e) {
       console.error('[COOMERDL] Error adding download button:', e);
     }
@@ -407,18 +488,36 @@
       }
     });
     
-    // Find all video elements and add download buttons
-    const videoElements = document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player');
+    // Find all images in post area (including expanded ones)
+    // Use a single query to avoid duplicates
+    const postImages = document.querySelectorAll('.post__files img, .post__content img, [class*="post"] img, div[class*="_expanded_"] img');
+    postImages.forEach(img => {
+      // Skip if this image is already in a link (links get their own button)
+      if (img.closest('a[href*="/data/"]')) {
+        return;
+      }
+      
+      let src = img.getAttribute('src') || img.getAttribute('data-src');
+      if (src) {
+        const validUrl = validateMediaUrl(src);
+        if (validUrl) {
+          addDownloadButtonToElement(img, src);
+        }
+      }
+    });
+    
+    // Find all video elements (including in expanded areas) and add download buttons
+    const videoElements = document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player, [class*="post"] video, div[class*="_expanded_"] video');
     videoElements.forEach(video => {
       // Check video src first
-      const videoSrc = video.getAttribute('src');
+      let videoSrc = video.getAttribute('src') || video.getAttribute('data-src');
       if (videoSrc) {
         addDownloadButtonToElement(video, videoSrc);
       } else {
         // Check source elements inside video
         const sources = video.querySelectorAll('source');
         sources.forEach(source => {
-          const sourceSrc = source.getAttribute('src');
+          const sourceSrc = source.getAttribute('src') || source.getAttribute('data-src');
           if (sourceSrc) {
             addDownloadButtonToElement(video, sourceSrc);
             return; // Only add one button per video
@@ -664,22 +763,43 @@
   
   // Update count when DOM changes (debounced)
   let updateTimeout = null;
-  const observer = new MutationObserver(() => {
+  const observer = new MutationObserver((mutations) => {
+    // Check if expanded content was added
+    let hasExpandedContent = false;
+    mutations.forEach(mutation => {
+      if (mutation.addedNodes.length > 0) {
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === 1) { // Element node
+            if (node.classList && node.classList.toString().includes('_expanded_')) {
+              hasExpandedContent = true;
+            }
+            if (node.querySelector && node.querySelector('div[class*="_expanded_"]')) {
+              hasExpandedContent = true;
+            }
+          }
+        });
+      }
+    });
+    
     if (updateTimeout) {
       clearTimeout(updateTimeout);
     }
+    // Use shorter timeout if expanded content was detected
+    const timeout = hasExpandedContent ? 200 : 500;
     updateTimeout = setTimeout(() => {
       if (isCoomerPost() || isCoomerProfile()) {
         updateCount();
       }
-    }, 500);
+    }, timeout);
   });
   
   // Observe if on post/profile page
   if ((isCoomerPost() || isCoomerProfile()) && document.body) {
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'] // Watch for class changes (when content expands)
     });
   }
   
@@ -701,7 +821,9 @@
           if (document.body) {
             observer.observe(document.body, {
               childList: true,
-              subtree: true
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['class']
             });
           }
           updateCount();

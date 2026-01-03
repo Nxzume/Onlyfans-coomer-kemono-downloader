@@ -982,92 +982,134 @@ async function scrapeCoomerPostFromDOM(url, settings, username = null, postName 
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
-        const mediaUrls = [];
+        // Map to store normalized URL -> full URL mapping (for deduplication)
+        const urlMap = new Map();
+        const processedElements = new Set(); // Track processed elements to avoid duplicates
+        
+        // Helper function to normalize and validate URL
+        // Returns both the normalized URL (for deduplication) and the full URL (for downloading)
+        const normalizeAndValidateUrl = (url) => {
+          if (!url) return null;
+          
+          let fullUrl = url;
+          if (!url.startsWith('http')) {
+            if (url.startsWith('//')) {
+              fullUrl = 'https:' + url;
+            } else if (url.startsWith('/')) {
+              fullUrl = window.location.origin + url;
+            } else {
+              fullUrl = window.location.origin + '/' + url;
+            }
+          }
+          
+          // Normalize URL by removing query params and hash for deduplication
+          const urlPath = fullUrl.split('?')[0].split('#')[0];
+          const endsWithExt = /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(urlPath);
+          const isDataPath = fullUrl.includes('/data/') || 
+                            /^https?:\/\/[n0-9]+\.(coomer|kemono)\./.test(fullUrl) ||
+                            (typeof isCoomerKemonoCdn === 'function' && isCoomerKemonoCdn(fullUrl));
+          const isExcluded = fullUrl.includes('.html') || 
+                           fullUrl.includes('.htm') ||
+                           fullUrl.includes('/api/') || 
+                           fullUrl.includes('/post/') ||
+                           fullUrl.includes('/user/') ||
+                           fullUrl.includes('/artists/') ||
+                           !endsWithExt ||
+                           !isDataPath;
+          
+          if (!isExcluded && endsWithExt && isDataPath) {
+            const pathParts = urlPath.split('/');
+            const lastPart = pathParts[pathParts.length - 1];
+            if (lastPart && /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(lastPart)) {
+              return { normalized: urlPath, full: fullUrl }; // Return both normalized and full URL
+            }
+          }
+          return null;
+        };
+        
+        // Find all file links
         document.querySelectorAll('.post__files a.fileThumb, .post__files a[href*="/data/"], .post__files a.image-link').forEach(link => {
           const href = link.getAttribute('href');
           if (href) {
-            let fullUrl = href;
-            if (!href.startsWith('http')) {
-              if (href.startsWith('//')) {
-                fullUrl = 'https:' + href;
-              } else if (href.startsWith('/')) {
-                fullUrl = window.location.origin + href;
-              } else {
-                fullUrl = window.location.origin + '/' + href;
-              }
-            }
-            
-            const urlPath = fullUrl.split('?')[0].split('#')[0];
-            const endsWithExt = /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(urlPath);
-            // More flexible CDN detection - works with any TLD
-            const isDataPath = fullUrl.includes('/data/') || 
-                              /^https?:\/\/[n0-9]+\.(coomer|kemono)\./.test(fullUrl) ||
-                              isCoomerKemonoCdn(fullUrl);
-            const isExcluded = fullUrl.includes('.html') || 
-                             fullUrl.includes('.htm') ||
-                             fullUrl.includes('/api/') || 
-                             fullUrl.includes('/post/') ||
-                             fullUrl.includes('/user/') ||
-                             fullUrl.includes('/artists/') ||
-                             fullUrl.includes('/account/') ||
-                             !endsWithExt ||
-                             !isDataPath;
-            
-            if (!isExcluded && endsWithExt && isDataPath) {
-              const pathParts = urlPath.split('/');
-              const lastPart = pathParts[pathParts.length - 1];
-              if (lastPart && /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(lastPart)) {
-                if (!mediaUrls.includes(fullUrl)) {
-                  mediaUrls.push(fullUrl);
-                }
+            const urlData = normalizeAndValidateUrl(href);
+            if (urlData) {
+              // Use normalized URL as key for deduplication
+              if (!urlMap.has(urlData.normalized)) {
+                urlMap.set(urlData.normalized, urlData.full);
               }
             }
           }
         });
         
-        document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player').forEach(video => {
-          let src = video.src || video.getAttribute('src');
+        // Find all images (including expanded ones) - single query to avoid duplicates
+        document.querySelectorAll('.post__files img, .post__content img, [class*="post"] img, div[class*="_expanded_"] img').forEach(img => {
+          // Skip if already processed or if in a link (links handled separately)
+          if (processedElements.has(img) || img.closest('a[href*="/data/"]')) {
+            return;
+          }
+          processedElements.add(img);
+          
+          const src = img.getAttribute('src') || img.getAttribute('data-src');
           if (src) {
-            if (!src.startsWith('http')) {
-              if (src.startsWith('//')) {
-                src = 'https:' + src;
-              } else if (src.startsWith('/')) {
-                src = window.location.origin + src;
+            const urlData = normalizeAndValidateUrl(src);
+            if (urlData) {
+              // Use normalized URL as key for deduplication
+              if (!urlMap.has(urlData.normalized)) {
+                urlMap.set(urlData.normalized, urlData.full);
               }
             }
-            
-            const urlPath = src.split('?')[0].split('#')[0];
-            const endsWithExt = /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(urlPath);
-            // More flexible CDN detection - works with any TLD
-            const isDataPath = src.includes('/data/') || 
-                              /^https?:\/\/[n0-9]+\.(coomer|kemono)\./.test(src) ||
-                              isCoomerKemonoCdn(src);
-            const isExcluded = src.includes('.html') || 
-                             src.includes('.htm') ||
-                             src.includes('/api/') || 
-                             src.includes('/post/') ||
-                             src.includes('/user/') ||
-                             !endsWithExt ||
-                             !isDataPath;
-            
-            if (!isExcluded && endsWithExt && isDataPath) {
-              const pathParts = urlPath.split('/');
-              const lastPart = pathParts[pathParts.length - 1];
-              if (lastPart && /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mkv|m4v|avi|flv|wmv|zip|rar|7z)$/i.test(lastPart)) {
-                if (!mediaUrls.includes(src)) {
-                  mediaUrls.push(src);
+          }
+        });
+        
+        // Find all videos (including expanded ones)
+        document.querySelectorAll('.post__files video, .post__video, video.js-fluid-player, [class*="post"] video, div[class*="_expanded_"] video').forEach(video => {
+          // Skip if already processed
+          if (processedElements.has(video)) {
+            return;
+          }
+          processedElements.add(video);
+          
+          // Check video src first, then data-src as fallback
+          let videoSrc = video.src || video.getAttribute('src') || video.getAttribute('data-src');
+          if (videoSrc) {
+            const urlData = normalizeAndValidateUrl(videoSrc);
+            if (urlData) {
+              // Use normalized URL as key for deduplication
+              if (!urlMap.has(urlData.normalized)) {
+                urlMap.set(urlData.normalized, urlData.full);
+              }
+            }
+          } else {
+            // Check source elements inside video (only if video src wasn't found)
+            const sources = video.querySelectorAll('source');
+            for (const source of sources) {
+              const sourceSrc = source.getAttribute('src') || source.getAttribute('data-src');
+              if (sourceSrc) {
+                const urlData = normalizeAndValidateUrl(sourceSrc);
+                if (urlData) {
+                  // Use normalized URL as key for deduplication
+                  if (!urlMap.has(urlData.normalized)) {
+                    urlMap.set(urlData.normalized, urlData.full);
+                  }
+                  break; // Only use first valid source
                 }
               }
             }
           }
         });
         
-        return mediaUrls;
+        // Return array of full URLs (for downloading)
+        const urlArray = Array.from(urlMap.values());
+        console.log('[COOMER] Found', urlArray.length, 'media URLs');
+        return urlArray;
       }
     });
     
     if (results && results[0] && results[0].result) {
       mediaUrls = results[0].result;
+      console.log('[COOMER] Scraped', mediaUrls.length, 'media URLs from DOM');
+    } else {
+      console.warn('[COOMER] No results from DOM scraping');
     }
     
     const pageData = await chrome.scripting.executeScript({
